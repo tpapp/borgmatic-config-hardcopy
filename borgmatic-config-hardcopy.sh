@@ -6,9 +6,10 @@ set -e                          # stop on error
 
 # defaults
 SSHKEY=~/.ssh/id_ed25519
-BORGMATIC_CONFIG=~/.config/borgmatic/config.yaml
+BORGMATIC_CONFIG=~/.config/borgmatic.d/config.yaml
 ID=$(hostname)
 OUTPUT="borgmatic-config-print.pdf"
+FORCE=false
 
 usage () {
     cat <<EOF 
@@ -18,19 +19,26 @@ Usage:
 Optional arguments (with defaults)
 
 -o ${OUTPUT}
-   output file, will abort if already exists
+   output file, will abort if already exists unless -f
+
+-f
+   force overwriting output file
+
 -s ${SSHKEY}
    location of SSH private key
+
 -c ${BORGMATIC_CONFIG}
    config.yaml for borgmatic
+
 -d ${ID}
    will be printed as a subtitle (defaults to hostname)
+
 -h
    print this help
 EOF
 }
 
-while getopts "o:s:c:i:h" OPTIONS; do
+while getopts "o:s:c:i:hf" OPTIONS; do
     case "${OPTIONS}" in
         o)
             OUTPUT=${OPTARG}
@@ -43,6 +51,9 @@ while getopts "o:s:c:i:h" OPTIONS; do
             ;;
         i)
             ID=${OPTARG}
+            ;;
+        f)
+            FORCE=true
             ;;
         h)
             echo -e "Generate a PDF file for printing a borgmatic configuration and the ssh key on paper.\n"
@@ -63,8 +74,22 @@ while getopts "o:s:c:i:h" OPTIONS; do
 done
 
 if [ -f "${OUTPUT}" ] ; then
-   echo "Output file ${OUTPUT} already exists, aborting."
-   exit 1
+    if ${FORCE}; then
+       echo "Output file ${OUTPUT} already exists, overwriting."
+    else
+       echo "Output file ${OUTPUT} already exists, aborting."
+       exit 1
+    fi
+fi
+
+if ! [ -s "${SSHKEY}" ] ; then
+    echo "SSH key ${SSHKEY} missing or empty, aborting."
+    exit 1
+fi
+
+if ! [ -s "${BORGMATIC_CONFIG}" ] ; then
+    echo "Borgmatic config ${BORGMATIC_CONFIG} missing or empty, aborting."
+    exit 1
 fi
 
 cat <<EOF
@@ -126,3 +151,6 @@ pdflatex -interaction=batchmode page.tex >/dev/null
 echo "Output saved in ${OUTPUT}"
 cd ${DIR}
 cp ${TMP}/page.pdf ${OUTPUT}
+
+# cleanup tmp
+rm -Rf ${TMP}
